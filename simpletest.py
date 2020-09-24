@@ -29,7 +29,7 @@ class TestFunc:
 		self.descr = descr
 
 	def toFile(self, prefix):
-		return prefix + 'm_tests.push_back(new rItemType("{NAME}", {DESCR}, &SimpleTest_{NAME}));\n'.format(NAME=self.name, DESCR=self.descr)
+		return prefix + 'm_tests.push_back(new rItemType("{NAME}", {DESCR}, &SimpleTest_Descr_{NAME}));\n'.format(NAME=self.name, DESCR=self.descr)
 
 	def toDecl(self, prefix):
 		return prefix + 'void SimpleTest_{NAME}(void);\n'.format(NAME=self.name)
@@ -41,14 +41,15 @@ gTests = []
 def readFile(filename, list):
 	with open(filename, 'r') as f:
 		for line in f:
-			newtests = re.findall(r'\s*S_NEW_TEST\(\s*\w+\s*,\s*[\w+ | "\w+"]+\s*\)', f.read())
+			newtests = re.findall(r'\s*S_NEW_TEST\s*\(\s*[a-zA-Z]+[0-9a-zA-Z_]*\s*, .*\)', f.read())
 			for test in newtests:
-				args      = re.split(r'\(\s*', test)
-				args      = re.split(r'\s*\)', args[1])
-				splitargs = re.split(r'\s*,\s*', args[0])
+				args      = re.split(r'\(\s*', test, 1)
+				args      = args[1].rsplit(')', 1)
+				splitargs = re.split(r'\s*,\s*', args[0], 1)
 				nametest  = splitargs[0]
 				descrtest = splitargs[1]
 				list.append(TestFunc(splitargs[0], splitargs[1]))
+				print(nametest, " ", descrtest)
 
 
 def createParser ():

@@ -202,7 +202,7 @@ public:
 
 	void Args(int argc, char **argv)
 	{
-		for (unsigned int ii = 1; ii < argc; ++ii) {
+		for (int ii = 1; ii < argc; ++ii) {
 			std::string str = argv[ii];
 
 			if (str == "-nc") {
