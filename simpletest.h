@@ -200,7 +200,7 @@ public:
 
 	void Init(); // generated
 
-	void Args(int argc, char **argv)
+	void Args(int argc, const char** argv)
 	{
 		for (int ii = 1; ii < argc; ++ii) {
 			std::string str = argv[ii];

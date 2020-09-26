@@ -29,7 +29,7 @@ class TestFunc:
 		self.descr = descr
 
 	def toFile(self, prefix):
-		return prefix + 'm_tests.push_back(new rItemType("{NAME}", {DESCR}, &SimpleTest_Descr_{NAME}));\n'.format(NAME=self.name, DESCR=self.descr)
+		return prefix + 'm_tests.push_back(new rItemType("{NAME}", {DESCR}, &SimpleTest_{NAME}));\n'.format(NAME=self.name, DESCR=self.descr)
 
 	def toDecl(self, prefix):
 		return prefix + 'void SimpleTest_{NAME}(void);\n'.format(NAME=self.name)
@@ -49,7 +49,6 @@ def readFile(filename, list):
 				nametest  = splitargs[0]
 				descrtest = splitargs[1]
 				list.append(TestFunc(splitargs[0], splitargs[1]))
-				print(nametest, " ", descrtest)
 
 
 def createParser ():
@@ -57,7 +56,6 @@ def createParser ():
 	parser.add_argument ('-f', '--files' , nargs='+')
 	parser.add_argument ('-d', '--dir'   , default=['./'])
 	parser.add_argument ('-o', '--output', default=['./simpletest.gen.cpp'])
-
 	return parser
 
 
