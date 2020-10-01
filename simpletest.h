@@ -31,6 +31,11 @@
 #define S_TEXT_INFO(x)          (rBashColor::getColor(rBashColor::GREEN, rBashColor::UNUSED, rBashColor::UNDERLINE, (x)).c_str())
 #define S_TEXT_RESET(x)         (rBashColor::getReset((x)).c_str())
 
+#define S_DBL_EQ(x, y)          (std::abs((x) - (y)) <= std::numeric_limits<double>::epsilon())
+#define S_DBL_NEQ(x, y)         (std::abs((x) - (y)) >  std::numeric_limits<double>::epsilon())
+#define S_FLT_EQ(x, y)          (std::abs((x) - (y)) <= std::numeric_limits<float>::epsilon())
+#define S_FLT_NEQ(x, y)         (std::abs((x) - (y)) >  std::numeric_limits<float>::epsilon())
+
 
 extern void handlerSimpleTest(int a);
 
@@ -163,7 +168,7 @@ private:
 
 	virtual ~rSimpleTest()
 	{
-		for (auto t : m_tests) {
+		for (auto& t : m_tests) {
 			delete t;
 		}
 		m_tests.clear();
@@ -231,7 +236,8 @@ public:
 
 	int Run()
 	{
-		signal(SIGFPE, handlerSimpleTest);
+		signal(SIGFPE , handlerSimpleTest);
+		signal(SIGSEGV, handlerSimpleTest);
 
 		S_PRINT("%sSimpleTest v 0.1%s\n", S_TEXT_INFO(m_colored), S_TEXT_RESET(m_colored));
 		for(auto t : m_tests) {
