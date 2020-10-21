@@ -8,6 +8,10 @@
 #include <string>
 #include <vector>
 
+#ifdef SIMPLETEST_USING_SIMPLEARGS
+#include "simpleargs.h"
+#endif
+
 #define S_INTERNAL_CHECK(expr, isreq)  \
 	try { \
 		if (!rSimpleTest::Instance().Check(#expr, expr, isreq)) { throw RequireException(#expr); } \
@@ -207,22 +211,36 @@ public:
 
 	void Args(int argc, const char** argv)
 	{
+#ifdef SIMPLETEST_USING_SIMPLEARGS
+		rSimpleArgs::instance()
+				.addSwitch("nocolor", 'n')
+				.addSwitch("all", 'a')
+				.addOption("test", 't');
+
+		rSimpleArgs::instance().parse(argc, argv);
+		m_colored = rSimpleArgs::instance().isSet("nocolor");
+		m_moreOut = rSimpleArgs::instance().isSet("all");
+
+		for (unsigned int ii = 0; ii < getCountArgument(); ++ii) {
+			m_flags |= FLAG_MANUALRUN;
+			for (auto t : m_tests) {
+				if(t->m_name == rSimpleArgs::instance().getArgument()) {
+					t->m_flags = rItemFlag::RUN;
+					break;
+				}
+			}
+		}
+#else
 		for (int ii = 1; ii < argc; ++ii) {
 			std::string str = argv[ii];
 
-			if (str == "-nc") {
+			if (str == "--nocolor") {
 				m_colored = false;
 
-			} else if (str == "-a") {
+			} else if (str == "--all") {
 				m_moreOut = true;
 
-			} else if (str == "-t") {
-				++ii;
-				if(ii >= argc) {
-					printf("SimpleTest: error in argument '-t'\n");
-					exit(1);
-				}
-
+			} else {
 				m_flags |= FLAG_MANUALRUN;
 				for (auto t : m_tests) {
 					if(t->m_name == argv[ii]) {
@@ -232,6 +250,7 @@ public:
 				}
 			}
 		}
+#endif
 	}
 
 	int Run()
