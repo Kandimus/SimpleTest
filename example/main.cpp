@@ -6,8 +6,8 @@ using namespace std;
 
 int main(int argc, const char** argv)
 {
-	rSimpleTest::Instance().Args(argc, argv);
-	rSimpleTest::Instance().Run();
+	rSimpleTest::instance().args(argc, argv);
+	rSimpleTest::instance().run();
 
 	return 0;
 }
