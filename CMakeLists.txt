@@ -2,11 +2,12 @@ cmake_minimum_required(VERSION 3.5)
 
 project(simpletest LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include_directories(tests)
-add_executable(${PROJECT_NAME} simpletest.h simpletest.gen.cpp example/main.cpp example/first.cpp)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/example)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+add_executable(${PROJECT_NAME} simpletest.cpp simpletest.gen.cpp example/main.cpp example/first.cpp)
 
 find_package( PythonInterp 3.0 REQUIRED )
 

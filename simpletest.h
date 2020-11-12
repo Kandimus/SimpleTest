@@ -6,7 +6,12 @@
 #include <csignal>
 #include <stdexcept>
 #include <string>
+#include <limits>
 #include <vector>
+#include <sstream>
+#include <iostream>
+#include <iomanip>
+#include "bashcolor.h"
 
 #ifdef SIMPLETEST_USING_SIMPLEARGS
 #include "simpleargs.h"
@@ -14,11 +19,11 @@
 
 #define S_INTERNAL_CHECK(expr, isreq)  \
 	try { \
-		if (!rSimpleTest::instance().check(#expr, expr, isreq)) { throw RequireException(#expr); } \
-	} catch (const RequireException& error) { \
+		SimpleTest::Tester::instance().check(#expr, SimpleTest::Decomposer() <= expr, isreq); \
+	} catch (const SimpleTest::RequireException& error) { \
 		throw error; \
 	} catch (const std::exception& error) { \
-		rSimpleTest::instance().printException(error); \
+		SimpleTest::Tester::instance().printException(error); \
 	}
 
 #ifndef S_PRINT
@@ -26,9 +31,10 @@
 #endif
 
 #define S_NEW_TEST(name, descr) void SimpleTest_##name(void)
-#define S_SECTION(descr)        if(rSimpleTest::instance().section(descr))
+#define S_SECTION(descr)        if(SimpleTest::Tester::instance().section(descr))
 #define S_REQUIRE(expr)         S_INTERNAL_CHECK(expr, true)
 #define S_CHECK(expr)           S_INTERNAL_CHECK(expr, false)
+#define S_EPSILON(epsilon)      { SimpleTest::Tester::instance().setEpsilon(epsilon); }
 #define S_TEXT_FAULT(x)         (rBashColor::getColor(rBashColor::RED, rBashColor::UNUSED, rBashColor::NONE, (x)).c_str())
 #define S_TEXT_SUCCESS(x)       (rBashColor::getColor(rBashColor::GREEN, rBashColor::UNUSED, rBashColor::NONE, (x)).c_str())
 #define S_TEXT_SECTION(x)       (rBashColor::getColor(rBashColor::BLUE, rBashColor::UNUSED, rBashColor::BOLD, (x)).c_str())
@@ -41,115 +47,91 @@
 #define S_FLT_NEQ(x, y)         (std::abs((x) - (y)) >  std::numeric_limits<float>::epsilon())
 
 
+namespace SimpleTest
+{
+
+class Tester;
+
 extern void handlerSimpleTest(int a);
 
 class RequireException: public std::exception
 {
 private:
-	std::string m_error;
+	std::string m_expression;
+	std::string m_expantion;
 
 public:
-	RequireException(std::string error) : m_error(error) {}
-	virtual const char* what() const noexcept { return m_error.c_str(); }
+	RequireException(std::string expression, std::string expantion) :
+		m_expression(expression),
+		m_expantion (expantion ) {}
+
+	virtual const char* getExpression() const noexcept { return m_expression.c_str(); }
+	virtual const char* getExpantion()  const noexcept { return m_expantion.c_str(); }
+};
+
+class IExpr
+{
+protected:
+	bool        m_result;
+	std::string m_oper;
+
+public:
+	IExpr(bool result, const std::string& oper) : m_result(result), m_oper(oper) {}
+	virtual bool getResult() const { return m_result; }
+	virtual std::string getExpansion() const = 0;
 };
 
 
-class rBashColor
+std::stringstream& operator<< (std::stringstream& ss, const char* str)
+{
+	ss << std::string(str);
+	return ss;
+}
+
+std::stringstream& operator<< (std::stringstream& ss, const void* ptr)
+{
+	std::intptr_t valptr = reinterpret_cast<std::intptr_t>(ptr);
+	ss << "0x" << std::setfill('0') << std::setw(sizeof(int) / 4) << std::hex << valptr;
+	return ss;
+}
+
+template<typename left_T, typename right_T>
+class BoolResult : public IExpr
 {
 public:
-	enum Color
-	{
-		UNUSED = -1,
-		BLACK = 0,
-		RED,
-		GREEN,
-		YELLOW,
-		BLUE,
-		MAGENTA,
-		CYAN,
-		WHITE,
-	};
 
-	enum Style
-	{
-		NONE      = 0x00,
-		NORMAL    = 0x01,
-		BOLD      = 0x02,
-		UNDERLINE = 0x04,
-		BLINK     = 0x08,
-		INVERT    = 0x10,
-		INVISIBLE = 0x20,
-	};
+	left_T  m_left;
+	right_T m_right;
 
-	#define COLOR_RESET "\x1b[0m"
-
-	static std::string getReset(bool iscolored)
+	virtual std::string getExpansion() const
 	{
-		return iscolored ? COLOR_RESET : "";
+		std::stringstream ss;
+
+		ss.precision(std::max(std::numeric_limits<left_T>::max_digits10, std::numeric_limits<right_T>::max_digits10));
+		ss << m_left << " " << m_oper << " " << m_right;
+		return ss.str();
 	}
 
-	#define APPLY_STYLE(x, y) if (style & (x)) { ascii += (ascii.size() ? std::string(";") : std::string("")) + #y; }
-
-	static std::string getColor(Color txt, Color bg, Style style, bool iscolored)
-	{
-		static const std::string escape     = "\x1b[";
-		static const std::string colors[8]  = {"30", "31", "32", "33", "34", "35", "36", "37"};
-		static const std::string bground[8] = {"40", "41", "42", "43", "44", "45", "46", "47"};
-
-		std::string ascii = "";
-
-		if (!iscolored) {
-			return ascii;
-		}
-
-		APPLY_STYLE(Style::NORMAL   , 10);
-		APPLY_STYLE(Style::BOLD     ,  1);
-		APPLY_STYLE(Style::UNDERLINE,  4);
-		APPLY_STYLE(Style::BLINK    ,  5);
-		APPLY_STYLE(Style::INVERT   ,  7);
-		APPLY_STYLE(Style::INVISIBLE,  8);
-
-		if (txt != Color::UNUSED) {
-			ascii += (ascii.size() ? std::string(";") : std::string("")) + colors[txt];
-		}
-
-		if (bg != Color::UNUSED) {
-			ascii += (ascii.size() ? std::string(";") : std::string("")) + bground[txt];
-		}
-
-		return ascii.size() ? escape + ascii + "m" : ascii;
-	}
-
-	std::string setColor(Color txt, Color bg, Style style, const std::string str, bool iscolored, bool isescaped)
-	{
-		std::string result = str;
-		std::string escape = getColor(txt, bg, style, iscolored);
-
-		if (escape.size()) {
-			result = escape + result;
-
-			if (isescaped) {
-				result += COLOR_RESET;
-			}
-		}
-
-		return result;
-	}
+	BoolResult(bool result, const left_T& lval, const std::string& oper, const right_T& rval) :
+		IExpr(result, oper), m_left(lval), m_right(rval) {}
 };
 
 
-class rSimpleTest
+
+
+
+class Tester
 {
 // Singleton
 private:
-	rSimpleTest(); //generating
-	rSimpleTest(const rSimpleTest&);
-	rSimpleTest& operator=(rSimpleTest&);
+	Tester(); //generating
+	Tester(const Tester&) = delete;
+	Tester& operator=(Tester&) = delete;
 public:
-	static rSimpleTest &instance() { static rSimpleTest Singleton; return Singleton; }
+	static Tester& instance() { static Tester Singleton; return Singleton; }
 
 private:
-	enum rItemFlag
+	enum Flag
 	{
 		NONE = 0,
 		AUTO,
@@ -158,45 +140,123 @@ private:
 
 	const unsigned int FLAG_MANUALRUN = 0x00000001;
 
-	typedef void(* rTestFunc)(void);
+	typedef void(* TestFunc)(void);
 
-	struct rItemType
+	struct Item
 	{
-		rItemType(std::string name, std::string descr, rTestFunc func) :
+		Item(std::string name, std::string descr, TestFunc func) :
 				m_descr(descr), m_name(name) { m_func = func; }
 		std::string m_descr;
 		std::string m_name;
-		rTestFunc   m_func;
-		rItemFlag   m_flags = rItemFlag::AUTO;
+		TestFunc    m_func;
+		Flag        m_flags = Flag::AUTO;
 	};
 
-	virtual ~rSimpleTest();
+	virtual ~Tester();
 
 public:
-	int  check(const std::string& strexpr, bool expr, bool isRequire);
+	int  check(const std::string& strexpr, const IExpr& expr, bool isRequire);
 	int  section(std::string descr);
 	void init(); // generating
 	void args(int argc, const char** argv);
 	int  run();
 	void printException(const std::exception& error);
-	void printCheck(const std::string& expr);
-	void printRequire(const std::string& expr);
-	void printSuccess(const std::string& expr, bool isreq);
-	bool isColored();
+	void printResult(bool result, const std::string& expression, const std::string& expantion, bool isrequire);
+	bool isColored() const { return m_colored; }
+	double getEpsilon() const { return m_epsilon; }
+	void   setEpsilon(double epsilon) { m_epsilon = epsilon; }
 
 public:
-	std::vector<rItemType* > m_tests;
-	unsigned int             m_flags          = 0;
-	unsigned int             m_curSection     = 0;
-	unsigned int             m_curTest        = 1;
-	unsigned int             m_faultSection   = 0;
-	unsigned int             m_successSection = 0;
-	unsigned int             m_faultTests     = 0;
-	unsigned int             m_successTests   = 0;
+	std::vector<Item*> m_tests;
+	unsigned int       m_flags          = 0;
+	unsigned int       m_curSection     = 0;
+	unsigned int       m_curTest        = 1;
+	unsigned int       m_faultSection   = 0;
+	unsigned int       m_successSection = 0;
+	unsigned int       m_faultTests     = 0;
+	unsigned int       m_successTests   = 0;
+	double             m_epsilon        = std::numeric_limits<double>::epsilon();
 
 private:
 	bool m_colored = true;
 	bool m_moreOut = false;
 };
+
+template<typename left_T>
+class BoolExpr : public IExpr
+{
+private:
+	left_T m_expr;
+
+public:
+	BoolExpr(left_T& expr) :
+		IExpr(expr, ""),
+		m_expr(expr) {}
+
+	BoolResult<left_T, double const&> const operator == (double const& rvalue ) {
+		return BoolResult<left_T, double const&>( std::abs(m_expr - rvalue) <= Tester::instance().getEpsilon(), m_expr, "=d=", rvalue );
+	}
+
+	template<typename right_T>
+	BoolResult<left_T, right_T const&> const operator == (right_T const& rval ) {
+		return BoolResult<left_T, right_T const&>( m_expr == rval, m_expr, "==", rval );
+	}
+
+	BoolResult<left_T, double const&> const operator != (double const& rvalue ) {
+		return BoolResult<left_T, double const&>( std::abs(m_expr - rvalue) > Tester::instance().getEpsilon(), m_expr, "!d=", rvalue );
+	}
+
+	template<typename right_T>
+	BoolResult<left_T, right_T const&> const operator != (right_T const& rval ) {
+		return BoolResult<left_T, right_T const&>( m_expr != rval, m_expr, "==", rval );
+	}
+
+	template<typename right_T>
+	BoolResult<left_T, right_T const&> const operator > (right_T const& rval ) {
+		return BoolResult<left_T, right_T const&>( m_expr > rval, m_expr, ">", rval );
+	}
+
+	template<typename right_T>
+	BoolResult<left_T, right_T const&> const operator >= (right_T const& rval ) {
+		return BoolResult<left_T, right_T const&>( m_expr >= rval, m_expr, ">=", rval );
+	}
+
+	template<typename right_T>
+	BoolResult<left_T, right_T const&> const operator < (right_T const& rval ) {
+		return BoolResult<left_T, right_T const&>( m_expr < rval, m_expr, "<", rval );
+	}
+
+	template<typename right_T>
+	BoolResult<left_T, right_T const&> const operator <= (right_T const& rval ) {
+		return BoolResult<left_T, right_T const&>( m_expr <= rval, m_expr, "<=", rval );
+	}
+
+/*
+	auto operator != ( bool rhs ) -> BinaryExpr<LhsT, bool> const {
+		return BinaryExpr<LhsT, bool>( m_lhs != rhs, m_lhs, "!=", rhs );
+	}
+*/
+	virtual std::string getExpansion() const
+	{
+		std::stringstream ss;
+
+		ss.precision(std::numeric_limits<left_T>::max_digits10);
+		ss << m_expr;
+		return ss.str();
+	}
+};
+
+
+class Decomposer
+{
+public:
+	template<typename T>
+	BoolExpr<T const&> operator <= (T const& rvalue) { return BoolExpr<T const&>(rvalue); }
+
+	BoolExpr<double> operator <= (double rvalue) { return BoolExpr<double>(rvalue); }
+//	BoolExpr<bool> operator <= (bool value) { return BoolExpr<bool>(value); }
+};
+
+}
 
 #endif // SIMPLETEST_H

@@ -1,13 +1,10 @@
 #include <iostream>
-#include "../simpletest.h"
-
-using namespace std;
-
+#include "simpletest.h"
 
 int main(int argc, const char** argv)
 {
-	rSimpleTest::instance().args(argc, argv);
-	rSimpleTest::instance().run();
+	SimpleTest::Tester::instance().args(argc, argv);
+	SimpleTest::Tester::instance().run();
 
 	return 0;
 }
